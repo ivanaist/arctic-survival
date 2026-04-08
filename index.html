@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Survive in the Arctic for 3 Weeks!</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #000; cursor: crosshair; }
+        canvas { display: block; }
+        #blocker {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 10, 20, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: #cde;
+            font-family: 'Courier New', monospace;
+        }
+        #blocker h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            color: #acd;
+            text-shadow: 0 0 20px rgba(100, 180, 255, 0.5);
+        }
+        #blocker p {
+            font-size: 16px;
+            margin-bottom: 8px;
+            color: #8ab;
+        }
+        #blocker .click-msg {
+            font-size: 20px;
+            margin-top: 30px;
+            color: #fff;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        #crosshair {
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px; height: 20px;
+            z-index: 50;
+            pointer-events: none;
+            display: none;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.6);
+        }
+        #crosshair::before {
+            top: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 2px; height: 100%;
+        }
+        #crosshair::after {
+            top: 50%; left: 0;
+            transform: translateY(-50%);
+            width: 100%; height: 2px;
+        }
+        #day-display {
+            position: fixed;
+            top: 20px; left: 50%;
+            transform: translateX(-50%);
+            color: #cde;
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            z-index: 50;
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="blocker">
+        <h1>Survive in the Arctic for 3 Weeks!</h1>
+        <p>WASD - Move</p>
+        <p>Mouse - Look around</p>
+        <p>Space - Jump</p>
+        <p>ESC - Pause</p>
+        <p class="click-msg">Click to start</p>
+    </div>
+    <div id="crosshair"></div>
+    <div id="day-display">Day 1 of 21</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+    (function() {
+        // ============================================================
+        // SETUP
+        // ============================================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xc8d8e8);
+        scene.fog = new THREE.FogExp2(0xc8d8e8, 0.003);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.set(0, 1.7, 0); // Eye height
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // ============================================================
+        // LIGHTING - Arctic atmosphere
+        // ============================================================
+        // Low arctic sun
+        const sunLight = new THREE.DirectionalLight(0xffeedd, 0.8);
+        sunLight.position.set(100, 30, -50);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 2048;
+        sunLight.shadow.mapSize.height = 2048;
+        sunLight.shadow.camera.near = 0.5;
+        sunLight.shadow.camera.far = 500;
+        sunLight.shadow.camera.left = -100;
+        sunLight.shadow.camera.right = 100;
+        sunLight.shadow.camera.top = 100;
+        sunLight.shadow.camera.bottom = -100;
+        scene.add(sunLight);
+
+        // Blue ambient light for cold feel
+        const ambientLight = new THREE.AmbientLight(0x6688aa, 0.5);
+        scene.add(ambientLight);
+
+        // Hemisphere light: sky blue from above, snow reflection from below
+        const hemiLight = new THREE.HemisphereLight(0x8899bb, 0xddeeff, 0.3);
+        scene.add(hemiLight);
+
+        // ============================================================
+        // GROUND - Snowy terrain
+        // ============================================================
+        const groundSize = 2000;
+        const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, 100, 100);
+        // Add subtle height variation for a natural feel
+        const vertices = groundGeo.attributes.position.array;
+        for (let i = 0; i < vertices.length; i += 3) {
+            // Y in plane geometry (before rotation) becomes height
+            vertices[i + 2] = Math.random() * 0.3 +
+                Math.sin(vertices[i] * 0.01) * 1.5 +
+                Math.cos(vertices[i + 1] * 0.01) * 1.5;
+        }
+        groundGeo.computeVertexNormals();
+
+        const groundMat = new THREE.MeshStandardMaterial({
+            color: 0xeef2f5,
+            roughness: 0.9,
+            metalness: 0.0,
+        });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // ============================================================
+        // SNOW PARTICLES
+        // ============================================================
+        const snowCount = 8000;
+        const snowGeo = new THREE.BufferGeometry();
+        const snowPositions = new Float32Array(snowCount * 3);
+        const snowVelocities = new Float32Array(snowCount);
+        const snowArea = 400; // Snow visible area around player
+
+        for (let i = 0; i < snowCount; i++) {
+            snowPositions[i * 3] = (Math.random() - 0.5) * snowArea;
+            snowPositions[i * 3 + 1] = Math.random() * 80;
+            snowPositions[i * 3 + 2] = (Math.random() - 0.5) * snowArea;
+            snowVelocities[i] = 0.5 + Math.random() * 1.5;
+        }
+        snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+
+        const snowMat = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 0.3,
+            transparent: true,
+            opacity: 0.8,
+            depthWrite: false,
+        });
+        const snow = new THREE.Points(snowGeo, snowMat);
+        scene.add(snow);
+
+        // ============================================================
+        // PLAYER CONTROLS
+        // ============================================================
+        const blocker = document.getElementById('blocker');
+        const crosshair = document.getElementById('crosshair');
+        const dayDisplay = document.getElementById('day-display');
+        let isLocked = false;
+
+        // Movement state
+        const moveState = { forward: false, backward: false, left: false, right: false };
+        let canJump = true;
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        const PI_2 = Math.PI / 2;
+        const moveSpeed = 60;
+        const jumpForce = 8;
+        const gravity = 20;
+        const playerHeight = 1.7;
+
+        // Pointer lock
+        document.addEventListener('click', function() {
+            if (!isLocked) {
+                renderer.domElement.requestPointerLock();
+            }
+        });
+
+        document.addEventListener('pointerlockchange', function() {
+            isLocked = document.pointerLockElement === renderer.domElement;
+            if (isLocked) {
+                blocker.style.display = 'none';
+                crosshair.style.display = 'block';
+                dayDisplay.style.display = 'block';
+            } else {
+                blocker.style.display = 'flex';
+                crosshair.style.display = 'none';
+            }
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isLocked) return;
+            euler.setFromQuaternion(camera.quaternion);
+            euler.y -= e.movementX * 0.002;
+            euler.x -= e.movementY * 0.002;
+            euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
+            camera.quaternion.setFromEuler(euler);
+        });
+
+        document.addEventListener('keydown', function(e) {
+            switch (e.code) {
+                case 'KeyW': moveState.forward = true; break;
+                case 'KeyS': moveState.backward = true; break;
+                case 'KeyA': moveState.left = true; break;
+                case 'KeyD': moveState.right = true; break;
+                case 'Space':
+                    if (canJump) {
+                        velocity.y = jumpForce;
+                        canJump = false;
+                    }
+                    break;
+            }
+        });
+
+        document.addEventListener('keyup', function(e) {
+            switch (e.code) {
+                case 'KeyW': moveState.forward = false; break;
+                case 'KeyS': moveState.backward = false; break;
+                case 'KeyA': moveState.left = false; break;
+                case 'KeyD': moveState.right = false; break;
+            }
+        });
+
+        // ============================================================
+        // WIND SOUND (Web Audio API)
+        // ============================================================
+        let audioCtx = null;
+        let windStarted = false;
+
+        function startWind() {
+            if (windStarted) return;
+            windStarted = true;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // White noise for wind
+            const bufferSize = 2 * audioCtx.sampleRate;
+            const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
+
+            const windNoise = audioCtx.createBufferSource();
+            windNoise.buffer = noiseBuffer;
+            windNoise.loop = true;
+
+            // Filter to make it sound like wind (low-pass)
+            const windFilter = audioCtx.createBiquadFilter();
+            windFilter.type = 'lowpass';
+            windFilter.frequency.value = 300;
+            windFilter.Q.value = 0.5;
+
+            // Another filter for more wind character
+            const windFilter2 = audioCtx.createBiquadFilter();
+            windFilter2.type = 'bandpass';
+            windFilter2.frequency.value = 150;
+            windFilter2.Q.value = 0.8;
+
+            const windGain = audioCtx.createGain();
+            windGain.gain.value = 0.15;
+
+            windNoise.connect(windFilter);
+            windFilter.connect(windFilter2);
+            windFilter2.connect(windGain);
+            windGain.connect(audioCtx.destination);
+            windNoise.start();
+
+            // Modulate the wind filter for natural gusts
+            function modulateWind() {
+                const now = audioCtx.currentTime;
+                windFilter.frequency.setValueAtTime(windFilter.frequency.value, now);
+                windFilter.frequency.linearRampToValueAtTime(
+                    200 + Math.random() * 300,
+                    now + 2 + Math.random() * 3
+                );
+                windGain.gain.setValueAtTime(windGain.gain.value, now);
+                windGain.gain.linearRampToValueAtTime(
+                    0.08 + Math.random() * 0.15,
+                    now + 2 + Math.random() * 3
+                );
+                setTimeout(modulateWind, 3000 + Math.random() * 4000);
+            }
+            modulateWind();
+        }
+
+        // Start audio on first click
+        document.addEventListener('click', startWind, { once: true });
+
+        // ============================================================
+        // FOOTSTEP SOUNDS
+        // ============================================================
+        let lastStepTime = 0;
+        const stepInterval = 400; // ms between footsteps
+
+        function playFootstep() {
+            if (!audioCtx) return;
+            const now = Date.now();
+            if (now - lastStepTime < stepInterval) return;
+            lastStepTime = now;
+
+            const t = audioCtx.currentTime;
+            // Crunchy snow footstep
+            const bufferSize = audioCtx.sampleRate * 0.15;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                const env = Math.exp(-i / (bufferSize * 0.15));
+                data[i] = (Math.random() * 2 - 1) * env;
+            }
+
+            const source = audioCtx.createBufferSource();
+            source.buffer = buffer;
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.value = 800 + Math.random() * 400;
+            filter.Q.value = 0.5;
+
+            const gain = audioCtx.createGain();
+            gain.gain.value = 0.12 + Math.random() * 0.05;
+
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+            source.start(t);
+        }
+
+        // ============================================================
+        // GAME LOOP
+        // ============================================================
+        const clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+
+            if (isLocked) {
+                // Movement
+                direction.z = Number(moveState.forward) - Number(moveState.backward);
+                direction.x = Number(moveState.right) - Number(moveState.left);
+                direction.normalize();
+
+                const forward = new THREE.Vector3();
+                camera.getWorldDirection(forward);
+                forward.y = 0;
+                forward.normalize();
+
+                const right = new THREE.Vector3();
+                right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+                // Apply friction
+                velocity.x -= velocity.x * 8 * delta;
+                velocity.z -= velocity.z * 8 * delta;
+
+                // Apply movement
+                velocity.x += (forward.x * direction.z + right.x * direction.x) * moveSpeed * delta;
+                velocity.z += (forward.z * direction.z + right.z * direction.x) * moveSpeed * delta;
+
+                // Gravity
+                velocity.y -= gravity * delta;
+
+                // Update position
+                camera.position.x += velocity.x * delta;
+                camera.position.z += velocity.z * delta;
+                camera.position.y += velocity.y * delta;
+
+                // Ground collision
+                if (camera.position.y < playerHeight) {
+                    camera.position.y = playerHeight;
+                    velocity.y = 0;
+                    canJump = true;
+                }
+
+                // Footstep sounds when moving on ground
+                const isMoving = direction.length() > 0;
+                if (isMoving && canJump) {
+                    playFootstep();
+                }
+            }
+
+            // Update snow - keep it around the player
+            const snowPos = snow.geometry.attributes.position.array;
+            for (let i = 0; i < snowCount; i++) {
+                const idx = i * 3;
+                // Fall down
+                snowPos[idx + 1] -= snowVelocities[i] * delta;
+                // Slight drift
+                snowPos[idx] += Math.sin(Date.now() * 0.001 + i) * 0.02;
+
+                // Reset snowflake if below ground or too far from player
+                if (snowPos[idx + 1] < 0) {
+                    snowPos[idx] = camera.position.x + (Math.random() - 0.5) * snowArea;
+                    snowPos[idx + 1] = 50 + Math.random() * 30;
+                    snowPos[idx + 2] = camera.position.z + (Math.random() - 0.5) * snowArea;
+                }
+
+                // Keep snow centered around player
+                const dx = snowPos[idx] - camera.position.x;
+                const dz = snowPos[idx + 2] - camera.position.z;
+                if (Math.abs(dx) > snowArea / 2) {
+                    snowPos[idx] = camera.position.x + (Math.random() - 0.5) * snowArea;
+                }
+                if (Math.abs(dz) > snowArea / 2) {
+                    snowPos[idx + 2] = camera.position.z + (Math.random() - 0.5) * snowArea;
+                }
+            }
+            snow.geometry.attributes.position.needsUpdate = true;
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // ============================================================
+        // RESIZE HANDLER
+        // ============================================================
+        window.addEventListener('resize', function() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    })();
+    </script>
+</body>
+</html>
