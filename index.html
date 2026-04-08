@@ -102,7 +102,7 @@
         scene.fog = new THREE.FogExp2(0xc8d8e8, 0.003);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-        camera.position.set(0, 1.7, 0); // Eye height
+        camera.position.set(0, 1.7, 0);
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -112,9 +112,8 @@
         document.body.appendChild(renderer.domElement);
 
         // ============================================================
-        // LIGHTING - Arctic atmosphere
+        // LIGHTING
         // ============================================================
-        // Low arctic sun
         const sunLight = new THREE.DirectionalLight(0xffeedd, 0.8);
         sunLight.position.set(100, 30, -50);
         sunLight.castShadow = true;
@@ -128,11 +127,9 @@
         sunLight.shadow.camera.bottom = -100;
         scene.add(sunLight);
 
-        // Blue ambient light for cold feel
         const ambientLight = new THREE.AmbientLight(0x6688aa, 0.5);
         scene.add(ambientLight);
 
-        // Hemisphere light: sky blue from above, snow reflection from below
         const hemiLight = new THREE.HemisphereLight(0x8899bb, 0xddeeff, 0.3);
         scene.add(hemiLight);
 
@@ -141,10 +138,8 @@
         // ============================================================
         const groundSize = 2000;
         const groundGeo = new THREE.PlaneGeometry(groundSize, groundSize, 100, 100);
-        // Add subtle height variation for a natural feel
         const vertices = groundGeo.attributes.position.array;
         for (let i = 0; i < vertices.length; i += 3) {
-            // Y in plane geometry (before rotation) becomes height
             vertices[i + 2] = Math.random() * 0.3 +
                 Math.sin(vertices[i] * 0.01) * 1.5 +
                 Math.cos(vertices[i + 1] * 0.01) * 1.5;
@@ -162,13 +157,32 @@
         scene.add(ground);
 
         // ============================================================
+        // WATER - Surrounds the snowy land at the edges
+        // ============================================================
+        const waterGeo = new THREE.PlaneGeometry(4000, 4000);
+        const waterMat = new THREE.MeshStandardMaterial({
+            color: 0x1a3a4a,
+            roughness: 0.2,
+            metalness: 0.3,
+            transparent: true,
+            opacity: 0.85,
+        });
+        const water = new THREE.Mesh(waterGeo, waterMat);
+        water.rotation.x = -Math.PI / 2;
+        water.position.y = -0.5; // Just below ground level
+        scene.add(water);
+
+        // The snow ground edge is at ~800 from center (groundSize/2 = 1000 but terrain is visible to ~800)
+        const landRadius = 800;
+
+        // ============================================================
         // SNOW PARTICLES
         // ============================================================
         const snowCount = 8000;
         const snowGeo = new THREE.BufferGeometry();
         const snowPositions = new Float32Array(snowCount * 3);
         const snowVelocities = new Float32Array(snowCount);
-        const snowArea = 400; // Snow visible area around player
+        const snowArea = 400;
 
         for (let i = 0; i < snowCount; i++) {
             snowPositions[i * 3] = (Math.random() - 0.5) * snowArea;
@@ -189,6 +203,479 @@
         scene.add(snow);
 
         // ============================================================
+        // ANIMAL BUILDERS - Blocky Minecraft-style animals
+        // ============================================================
+
+        function createPolarBear() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0xf0ece0, roughness: 0.8 });
+            const noseMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+
+            // Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 3.0), mat);
+            body.position.y = 1.4;
+            body.castShadow = true;
+            group.add(body);
+
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.0, 1.2), mat);
+            head.position.set(0, 2.0, 1.8);
+            head.castShadow = true;
+            group.add(head);
+
+            // Nose
+            const nose = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.2), noseMat);
+            nose.position.set(0, 1.85, 2.45);
+            group.add(nose);
+
+            // Eyes
+            const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), eyeMat);
+            eyeL.position.set(-0.3, 2.1, 2.41);
+            group.add(eyeL);
+            const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.1), eyeMat);
+            eyeR.position.set(0.3, 2.1, 2.41);
+            group.add(eyeR);
+
+            // Ears
+            const earL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.2), mat);
+            earL.position.set(-0.45, 2.55, 1.8);
+            group.add(earL);
+            const earR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.2), mat);
+            earR.position.set(0.45, 2.55, 1.8);
+            group.add(earR);
+
+            // Legs
+            const legGeo = new THREE.BoxGeometry(0.5, 0.7, 0.5);
+            const fl = new THREE.Mesh(legGeo, mat); fl.position.set(-0.5, 0.35, 1.0); fl.castShadow = true; group.add(fl);
+            const fr = new THREE.Mesh(legGeo, mat); fr.position.set(0.5, 0.35, 1.0); fr.castShadow = true; group.add(fr);
+            const bl = new THREE.Mesh(legGeo, mat); bl.position.set(-0.5, 0.35, -1.0); bl.castShadow = true; group.add(bl);
+            const br = new THREE.Mesh(legGeo, mat); br.position.set(0.5, 0.35, -1.0); br.castShadow = true; group.add(br);
+
+            group.legs = [fl, fr, bl, br];
+            return group;
+        }
+
+        function createSeal() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0x778899, roughness: 0.7 });
+            const bellyMat = new THREE.MeshStandardMaterial({ color: 0x99aabb, roughness: 0.7 });
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+            const noseMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+            // Body - elongated
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 2.0), mat);
+            body.position.y = 0.4;
+            body.castShadow = true;
+            group.add(body);
+
+            // Belly
+            const belly = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 1.8), bellyMat);
+            belly.position.y = 0.15;
+            group.add(belly);
+
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.55, 0.7), mat);
+            head.position.set(0, 0.55, 1.2);
+            head.castShadow = true;
+            group.add(head);
+
+            // Nose
+            const nose = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.15, 0.1), noseMat);
+            nose.position.set(0, 0.45, 1.56);
+            group.add(nose);
+
+            // Eyes
+            const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), eyeMat);
+            eyeL.position.set(-0.2, 0.6, 1.56);
+            group.add(eyeL);
+            const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.05), eyeMat);
+            eyeR.position.set(0.2, 0.6, 1.56);
+            group.add(eyeR);
+
+            // Flippers (front)
+            const flipperGeo = new THREE.BoxGeometry(0.6, 0.1, 0.4);
+            const flipL = new THREE.Mesh(flipperGeo, mat); flipL.position.set(-0.6, 0.2, 0.5); group.add(flipL);
+            const flipR = new THREE.Mesh(flipperGeo, mat); flipR.position.set(0.6, 0.2, 0.5); group.add(flipR);
+
+            // Tail flipper
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.1, 0.4), mat);
+            tail.position.set(0, 0.2, -1.2);
+            group.add(tail);
+
+            return group;
+        }
+
+        function createBird() {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.7 });
+            const wingMat = new THREE.MeshStandardMaterial({ color: 0x889999, roughness: 0.7 });
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+            const beakMat = new THREE.MeshStandardMaterial({ color: 0xddaa33 });
+
+            // Body
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.7), mat);
+            body.position.y = 0;
+            body.castShadow = true;
+            group.add(body);
+
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), mat);
+            head.position.set(0, 0.2, 0.45);
+            group.add(head);
+
+            // Beak
+            const beak = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.08, 0.2), beakMat);
+            beak.position.set(0, 0.15, 0.7);
+            group.add(beak);
+
+            // Eyes
+            const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.04), eyeMat);
+            eyeL.position.set(-0.12, 0.25, 0.61);
+            group.add(eyeL);
+            const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.04), eyeMat);
+            eyeR.position.set(0.12, 0.25, 0.61);
+            group.add(eyeR);
+
+            // Wings
+            const wingGeo = new THREE.BoxGeometry(0.6, 0.08, 0.5);
+            const wingL = new THREE.Mesh(wingGeo, wingMat); wingL.position.set(-0.45, 0.05, 0); group.add(wingL);
+            const wingR = new THREE.Mesh(wingGeo, wingMat); wingR.position.set(0.45, 0.05, 0); group.add(wingR);
+
+            // Tail
+            const tail = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 0.3), wingMat);
+            tail.position.set(0, 0.05, -0.45);
+            group.add(tail);
+
+            group.wingL = wingL;
+            group.wingR = wingR;
+            return group;
+        }
+
+        function createPenguin() {
+            const group = new THREE.Group();
+            const blackMat = new THREE.MeshStandardMaterial({ color: 0x222233, roughness: 0.7 });
+            const whiteMat = new THREE.MeshStandardMaterial({ color: 0xeeeef0, roughness: 0.7 });
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const pupilMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+            const beakMat = new THREE.MeshStandardMaterial({ color: 0xdd8833 });
+            const feetMat = new THREE.MeshStandardMaterial({ color: 0xdd8833 });
+
+            // Body (black back)
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.8, 0.4), blackMat);
+            body.position.y = 0.7;
+            body.castShadow = true;
+            group.add(body);
+
+            // Belly (white front)
+            const belly = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.6, 0.1), whiteMat);
+            belly.position.set(0, 0.7, 0.2);
+            group.add(belly);
+
+            // Head
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.35), blackMat);
+            head.position.set(0, 1.25, 0.0);
+            head.castShadow = true;
+            group.add(head);
+
+            // White face patch
+            const face = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.1), whiteMat);
+            face.position.set(0, 1.2, 0.18);
+            group.add(face);
+
+            // Eyes
+            const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.05), eyeMat);
+            eyeL.position.set(-0.1, 1.28, 0.2);
+            group.add(eyeL);
+            const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.05), eyeMat);
+            eyeR.position.set(0.1, 1.28, 0.2);
+            group.add(eyeR);
+
+            // Pupils
+            const pupilL = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.02), pupilMat);
+            pupilL.position.set(-0.1, 1.28, 0.23);
+            group.add(pupilL);
+            const pupilR = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.02), pupilMat);
+            pupilR.position.set(0.1, 1.28, 0.23);
+            group.add(pupilR);
+
+            // Beak
+            const beak = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.15), beakMat);
+            beak.position.set(0, 1.18, 0.25);
+            group.add(beak);
+
+            // Wings/flippers
+            const wingGeo = new THREE.BoxGeometry(0.12, 0.5, 0.25);
+            const wingL = new THREE.Mesh(wingGeo, blackMat); wingL.position.set(-0.32, 0.7, 0); group.add(wingL);
+            const wingR = new THREE.Mesh(wingGeo, blackMat); wingR.position.set(0.32, 0.7, 0); group.add(wingR);
+
+            // Feet
+            const footGeo = new THREE.BoxGeometry(0.18, 0.06, 0.25);
+            const footL = new THREE.Mesh(footGeo, feetMat); footL.position.set(-0.12, 0.03, 0.1); group.add(footL);
+            const footR = new THREE.Mesh(footGeo, feetMat); footR.position.set(0.12, 0.03, 0.1); group.add(footR);
+
+            return group;
+        }
+
+        // ============================================================
+        // SPAWN ANIMALS
+        // ============================================================
+        const animals = [];
+        const animalCount = 45;
+
+        // Helper: random position near the water edge (600-780 from center)
+        function nearWaterPos() {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 600 + Math.random() * 180;
+            return new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+        }
+
+        // Helper: random position on land (50-600 from center)
+        function onLandPos() {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 50 + Math.random() * 550;
+            return new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+        }
+
+        // Spawn polar bears - near water
+        for (let i = 0; i < animalCount; i++) {
+            const bear = createPolarBear();
+            const pos = nearWaterPos();
+            bear.position.copy(pos);
+            bear.rotation.y = Math.random() * Math.PI * 2;
+            scene.add(bear);
+            animals.push({
+                mesh: bear,
+                type: 'polarbear',
+                hp: 1000,
+                maxHp: 1000,
+                speed: 3.5,
+                targetPos: null,
+                wanderTimer: 0,
+                state: 'wander', // 'wander', 'chase', 'hunt_seal'
+                attackCooldown: 0,
+                legPhase: Math.random() * Math.PI * 2,
+            });
+        }
+
+        // Spawn seals - near water
+        for (let i = 0; i < animalCount; i++) {
+            const seal = createSeal();
+            const pos = nearWaterPos();
+            seal.position.copy(pos);
+            seal.rotation.y = Math.random() * Math.PI * 2;
+            scene.add(seal);
+            animals.push({
+                mesh: seal,
+                type: 'seal',
+                hp: 500,
+                maxHp: 500,
+                speed: 1.2,
+                targetPos: null,
+                wanderTimer: 0,
+                state: 'wander',
+            });
+        }
+
+        // Spawn birds - anywhere, they fly
+        for (let i = 0; i < animalCount; i++) {
+            const bird = createBird();
+            const pos = onLandPos();
+            pos.y = 15 + Math.random() * 30; // Flying height
+            bird.position.copy(pos);
+            bird.rotation.y = Math.random() * Math.PI * 2;
+            scene.add(bird);
+            animals.push({
+                mesh: bird,
+                type: 'bird',
+                hp: 100,
+                maxHp: 100,
+                speed: 8,
+                targetPos: null,
+                wanderTimer: 0,
+                state: 'fly',
+                flyHeight: 15 + Math.random() * 30,
+                wingPhase: Math.random() * Math.PI * 2,
+            });
+        }
+
+        // Spawn penguins - on land
+        for (let i = 0; i < animalCount; i++) {
+            const penguin = createPenguin();
+            const pos = onLandPos();
+            penguin.position.copy(pos);
+            penguin.rotation.y = Math.random() * Math.PI * 2;
+            scene.add(penguin);
+            animals.push({
+                mesh: penguin,
+                type: 'penguin',
+                hp: 6,
+                maxHp: 6,
+                speed: 1.5,
+                targetPos: null,
+                wanderTimer: 0,
+                state: 'wander',
+                waddle: 0,
+            });
+        }
+
+        // ============================================================
+        // ANIMAL AI
+        // ============================================================
+        const bearChaseRange = 40;
+        const bearAttackRange = 3;
+        const bearSealHuntRange = 50;
+        let playerHp = 100;
+
+        function updateAnimals(delta) {
+            for (const animal of animals) {
+                if (animal.hp <= 0) continue;
+
+                const pos = animal.mesh.position;
+
+                if (animal.type === 'polarbear') {
+                    // Check distance to player
+                    const distToPlayer = pos.distanceTo(camera.position);
+
+                    // Check for nearby seals
+                    let nearestSeal = null;
+                    let nearestSealDist = bearSealHuntRange;
+                    for (const other of animals) {
+                        if (other.type === 'seal' && other.hp > 0) {
+                            const d = pos.distanceTo(other.mesh.position);
+                            if (d < nearestSealDist) {
+                                nearestSealDist = d;
+                                nearestSeal = other;
+                            }
+                        }
+                    }
+
+                    // Priority: chase player if close, else hunt seals, else wander
+                    if (distToPlayer < bearChaseRange) {
+                        animal.state = 'chase';
+                        // Move toward player
+                        const dir = new THREE.Vector3().subVectors(camera.position, pos).normalize();
+                        dir.y = 0;
+                        pos.x += dir.x * animal.speed * 1.5 * delta;
+                        pos.z += dir.z * animal.speed * 1.5 * delta;
+                        // Face player
+                        animal.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+
+                        // Attack player
+                        if (distToPlayer < bearAttackRange) {
+                            animal.attackCooldown -= delta;
+                            if (animal.attackCooldown <= 0) {
+                                playerHp -= 4;
+                                animal.attackCooldown = 1.0;
+                                // Screen flash red on hit (handled in render)
+                            }
+                        }
+                    } else if (nearestSeal) {
+                        animal.state = 'hunt_seal';
+                        const dir = new THREE.Vector3().subVectors(nearestSeal.mesh.position, pos).normalize();
+                        dir.y = 0;
+                        pos.x += dir.x * animal.speed * delta;
+                        pos.z += dir.z * animal.speed * delta;
+                        animal.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+
+                        // Kill seal if close
+                        if (nearestSealDist < 3) {
+                            nearestSeal.hp = 0;
+                            nearestSeal.mesh.visible = false;
+                        }
+                    } else {
+                        animal.state = 'wander';
+                        wander(animal, delta, 500, 800);
+                    }
+
+                    // Animate legs
+                    if (animal.state !== 'wander' || (animal.targetPos && pos.distanceTo(animal.targetPos) > 2)) {
+                        animal.legPhase += delta * 6;
+                        const legs = animal.mesh.legs;
+                        if (legs) {
+                            legs[0].position.y = 0.35 + Math.sin(animal.legPhase) * 0.15;
+                            legs[1].position.y = 0.35 + Math.sin(animal.legPhase + Math.PI) * 0.15;
+                            legs[2].position.y = 0.35 + Math.sin(animal.legPhase + Math.PI) * 0.15;
+                            legs[3].position.y = 0.35 + Math.sin(animal.legPhase) * 0.15;
+                        }
+                    }
+
+                } else if (animal.type === 'seal') {
+                    wander(animal, delta, 550, 800);
+                    // Slight body wobble
+                    animal.mesh.rotation.z = Math.sin(Date.now() * 0.002 + animals.indexOf(animal)) * 0.05;
+
+                } else if (animal.type === 'bird') {
+                    // Fly in circles and occasionally change direction
+                    animal.wanderTimer -= delta;
+                    if (animal.wanderTimer <= 0 || !animal.targetPos) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const dist = 100 + Math.random() * 500;
+                        animal.targetPos = new THREE.Vector3(
+                            Math.cos(angle) * dist,
+                            animal.flyHeight + (Math.random() - 0.5) * 10,
+                            Math.sin(angle) * dist
+                        );
+                        animal.wanderTimer = 5 + Math.random() * 10;
+                    }
+
+                    const dir = new THREE.Vector3().subVectors(animal.targetPos, pos).normalize();
+                    pos.x += dir.x * animal.speed * delta;
+                    pos.y += (animal.targetPos.y - pos.y) * delta;
+                    pos.z += dir.z * animal.speed * delta;
+                    animal.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+
+                    // Wing flapping
+                    animal.wingPhase += delta * 8;
+                    if (animal.mesh.wingL) {
+                        animal.mesh.wingL.rotation.z = Math.sin(animal.wingPhase) * 0.5;
+                        animal.mesh.wingR.rotation.z = -Math.sin(animal.wingPhase) * 0.5;
+                    }
+
+                } else if (animal.type === 'penguin') {
+                    wander(animal, delta, 0, 600);
+                    // Waddle animation
+                    animal.waddle += delta * 4;
+                    animal.mesh.rotation.z = Math.sin(animal.waddle) * 0.1;
+                }
+            }
+        }
+
+        function wander(animal, delta, minDist, maxDist) {
+            animal.wanderTimer -= delta;
+            if (animal.wanderTimer <= 0 || !animal.targetPos) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = minDist + Math.random() * (maxDist - minDist);
+                animal.targetPos = new THREE.Vector3(
+                    Math.cos(angle) * dist,
+                    animal.mesh.position.y,
+                    Math.sin(angle) * dist
+                );
+                animal.wanderTimer = 3 + Math.random() * 8;
+            }
+
+            const dir = new THREE.Vector3().subVectors(animal.targetPos, animal.mesh.position);
+            dir.y = 0;
+            const dist = dir.length();
+            if (dist > 1) {
+                dir.normalize();
+                animal.mesh.position.x += dir.x * animal.speed * delta;
+                animal.mesh.position.z += dir.z * animal.speed * delta;
+                animal.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+            } else {
+                animal.wanderTimer = 0;
+            }
+        }
+
+        // ============================================================
+        // DAMAGE FLASH OVERLAY
+        // ============================================================
+        const damageOverlay = document.createElement('div');
+        damageOverlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,0,0,0);pointer-events:none;z-index:40;transition:background 0.1s;';
+        document.body.appendChild(damageOverlay);
+        let lastPlayerHp = playerHp;
+
+        // ============================================================
         // PLAYER CONTROLS
         // ============================================================
         const blocker = document.getElementById('blocker');
@@ -196,7 +683,6 @@
         const dayDisplay = document.getElementById('day-display');
         let isLocked = false;
 
-        // Movement state
         const moveState = { forward: false, backward: false, left: false, right: false };
         let canJump = true;
         const velocity = new THREE.Vector3();
@@ -208,7 +694,6 @@
         const gravity = 20;
         const playerHeight = 1.7;
 
-        // Pointer lock
         document.addEventListener('click', function() {
             if (!isLocked) {
                 renderer.domElement.requestPointerLock();
@@ -261,7 +746,7 @@
         });
 
         // ============================================================
-        // WIND SOUND (Web Audio API)
+        // WIND SOUND
         // ============================================================
         let audioCtx = null;
         let windStarted = false;
@@ -271,7 +756,6 @@
             windStarted = true;
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-            // White noise for wind
             const bufferSize = 2 * audioCtx.sampleRate;
             const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const output = noiseBuffer.getChannelData(0);
@@ -283,13 +767,11 @@
             windNoise.buffer = noiseBuffer;
             windNoise.loop = true;
 
-            // Filter to make it sound like wind (low-pass)
             const windFilter = audioCtx.createBiquadFilter();
             windFilter.type = 'lowpass';
             windFilter.frequency.value = 300;
             windFilter.Q.value = 0.5;
 
-            // Another filter for more wind character
             const windFilter2 = audioCtx.createBiquadFilter();
             windFilter2.type = 'bandpass';
             windFilter2.frequency.value = 150;
@@ -304,7 +786,6 @@
             windGain.connect(audioCtx.destination);
             windNoise.start();
 
-            // Modulate the wind filter for natural gusts
             function modulateWind() {
                 const now = audioCtx.currentTime;
                 windFilter.frequency.setValueAtTime(windFilter.frequency.value, now);
@@ -322,14 +803,13 @@
             modulateWind();
         }
 
-        // Start audio on first click
         document.addEventListener('click', startWind, { once: true });
 
         // ============================================================
         // FOOTSTEP SOUNDS
         // ============================================================
         let lastStepTime = 0;
-        const stepInterval = 400; // ms between footsteps
+        const stepInterval = 400;
 
         function playFootstep() {
             if (!audioCtx) return;
@@ -338,7 +818,6 @@
             lastStepTime = now;
 
             const t = audioCtx.currentTime;
-            // Crunchy snow footstep
             const bufferSize = audioCtx.sampleRate * 0.15;
             const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const data = buffer.getChannelData(0);
@@ -387,53 +866,53 @@
                 const right = new THREE.Vector3();
                 right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-                // Apply friction
                 velocity.x -= velocity.x * 8 * delta;
                 velocity.z -= velocity.z * 8 * delta;
 
-                // Apply movement
                 velocity.x += (forward.x * direction.z + right.x * direction.x) * moveSpeed * delta;
                 velocity.z += (forward.z * direction.z + right.z * direction.x) * moveSpeed * delta;
 
-                // Gravity
                 velocity.y -= gravity * delta;
 
-                // Update position
                 camera.position.x += velocity.x * delta;
                 camera.position.z += velocity.z * delta;
                 camera.position.y += velocity.y * delta;
 
-                // Ground collision
                 if (camera.position.y < playerHeight) {
                     camera.position.y = playerHeight;
                     velocity.y = 0;
                     canJump = true;
                 }
 
-                // Footstep sounds when moving on ground
                 const isMoving = direction.length() > 0;
                 if (isMoving && canJump) {
                     playFootstep();
                 }
             }
 
-            // Update snow - keep it around the player
+            // Update animals
+            updateAnimals(delta);
+
+            // Damage flash
+            if (playerHp < lastPlayerHp) {
+                damageOverlay.style.background = 'rgba(255, 0, 0, 0.4)';
+                setTimeout(() => { damageOverlay.style.background = 'rgba(255, 0, 0, 0)'; }, 200);
+            }
+            lastPlayerHp = playerHp;
+
+            // Update snow
             const snowPos = snow.geometry.attributes.position.array;
             for (let i = 0; i < snowCount; i++) {
                 const idx = i * 3;
-                // Fall down
                 snowPos[idx + 1] -= snowVelocities[i] * delta;
-                // Slight drift
                 snowPos[idx] += Math.sin(Date.now() * 0.001 + i) * 0.02;
 
-                // Reset snowflake if below ground or too far from player
                 if (snowPos[idx + 1] < 0) {
                     snowPos[idx] = camera.position.x + (Math.random() - 0.5) * snowArea;
                     snowPos[idx + 1] = 50 + Math.random() * 30;
                     snowPos[idx + 2] = camera.position.z + (Math.random() - 0.5) * snowArea;
                 }
 
-                // Keep snow centered around player
                 const dx = snowPos[idx] - camera.position.x;
                 const dz = snowPos[idx + 2] - camera.position.z;
                 if (Math.abs(dx) > snowArea / 2) {
@@ -451,7 +930,7 @@
         animate();
 
         // ============================================================
-        // RESIZE HANDLER
+        // RESIZE
         // ============================================================
         window.addEventListener('resize', function() {
             camera.aspect = window.innerWidth / window.innerHeight;
