@@ -77,6 +77,112 @@
             text-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
             display: none;
         }
+        #hud {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            pointer-events: none;
+            font-family: 'Courier New', monospace;
+        }
+        #stats-row {
+            display: flex;
+            gap: 24px;
+        }
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #cde;
+            font-size: 13px;
+            text-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+        }
+        .stat-label {
+            width: 56px;
+            text-align: right;
+        }
+        .bar-track {
+            width: 180px;
+            height: 14px;
+            background: rgba(0, 20, 40, 0.55);
+            border: 2px solid rgba(200, 220, 240, 0.45);
+            border-radius: 3px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        .bar-fill {
+            height: 100%;
+            transition: width 0.25s ease-out;
+        }
+        #health-fill { background: linear-gradient(90deg, #c22, #f55); }
+        #hunger-fill { background: linear-gradient(90deg, #b70, #fc3); }
+        #hotbar {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .slot {
+            width: 58px;
+            height: 68px;
+            background: rgba(0, 20, 40, 0.5);
+            border: 2px solid rgba(200, 220, 240, 0.45);
+            border-radius: 4px;
+            position: relative;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+        }
+        .slot.selected {
+            border-color: #fff;
+            background: rgba(120, 180, 220, 0.35);
+            box-shadow: 0 0 14px rgba(200, 230, 255, 0.7);
+        }
+        .slot-num {
+            position: absolute;
+            top: 3px;
+            left: 5px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.7);
+            font-family: 'Courier New', monospace;
+        }
+        .slot-icon {
+            position: absolute;
+            top: 36%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            line-height: 1;
+            text-align: center;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+        }
+        .slot-name {
+            position: absolute;
+            bottom: 3px;
+            left: 2px;
+            right: 2px;
+            text-align: center;
+            font-size: 9px;
+            color: #dde8f5;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            letter-spacing: 0.2px;
+        }
+        .slot-count {
+            position: absolute;
+            top: 3px;
+            right: 5px;
+            font-size: 11px;
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -90,6 +196,28 @@
     </div>
     <div id="crosshair"></div>
     <div id="day-display">Day 1 of 21</div>
+    <div id="hud">
+        <div id="stats-row">
+            <div class="stat">
+                <span class="stat-label">Health</span>
+                <div class="bar-track"><div id="health-fill" class="bar-fill"></div></div>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Hunger</span>
+                <div class="bar-track"><div id="hunger-fill" class="bar-fill"></div></div>
+            </div>
+        </div>
+        <div id="hotbar">
+            <div class="slot selected"><span class="slot-num">1</span><span class="slot-icon"></span><span class="slot-name"></span><span class="slot-count"></span></div>
+            <div class="slot"><span class="slot-num">2</span><span class="slot-icon"></span><span class="slot-name"></span><span class="slot-count"></span></div>
+            <div class="slot"><span class="slot-num">3</span><span class="slot-icon"></span><span class="slot-name"></span><span class="slot-count"></span></div>
+            <div class="slot"><span class="slot-num">4</span><span class="slot-icon"></span><span class="slot-name"></span><span class="slot-count"></span></div>
+            <div class="slot"><span class="slot-num">5</span><span class="slot-icon"></span><span class="slot-name"></span><span class="slot-count"></span></div>
+            <div class="slot"><span class="slot-num">6</span><span class="slot-icon"></span><span class="slot-name"></span><span class="slot-count"></span></div>
+            <div class="slot"><span class="slot-num">7</span><span class="slot-icon"></span><span class="slot-name"></span><span class="slot-count"></span></div>
+            <div class="slot"><span class="slot-num">8</span><span class="slot-icon"></span><span class="slot-name"></span><span class="slot-count"></span></div>
+        </div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
@@ -681,7 +809,475 @@
         const blocker = document.getElementById('blocker');
         const crosshair = document.getElementById('crosshair');
         const dayDisplay = document.getElementById('day-display');
+        const hud = document.getElementById('hud');
+        const healthFill = document.getElementById('health-fill');
+        const hungerFill = document.getElementById('hunger-fill');
+        const slots = document.querySelectorAll('.slot');
+        let selectedSlot = 0;
+        let playerHunger = 100;
         let isPlaying = false;
+
+        function updateHud() {
+            healthFill.style.width = Math.max(0, Math.min(100, playerHp)) + '%';
+            hungerFill.style.width = Math.max(0, Math.min(100, playerHunger)) + '%';
+        }
+        updateHud();
+
+        function selectSlot(idx) {
+            if (idx < 0 || idx >= slots.length) return;
+            selectedSlot = idx;
+            slots.forEach((s, i) => s.classList.toggle('selected', i === idx));
+        }
+
+        // ============================================================
+        // INVENTORY + ITEMS
+        // ============================================================
+        const ITEM_TYPES = {
+            shovel:      { icon: '⛏️', name: 'Shovel',      short: 'Shovel',  stackable: false },
+            flashlight:  { icon: '🔦', name: 'Flashlight',  short: 'Flash',   stackable: false },
+            gun:         { icon: '🔫', name: 'Gun',         short: 'Gun',     stackable: false },
+            ammo:        { icon: '🟡', name: 'Bullets',     short: 'Bullets', stackable: true  },
+            lighter:     { icon: '🔥', name: 'Lighter',     short: 'Lighter', stackable: false },
+            snowball:    { icon: '❄️', name: 'Snowball',    short: 'Snow',    stackable: true  },
+            meat_raw:    { icon: '🍖', name: 'Raw meat',    short: 'Raw',     stackable: true  },
+            meat_cooked: { icon: '🥩', name: 'Cooked meat', short: 'Cooked',  stackable: true  },
+        };
+
+        const inventory = new Array(8).fill(null);
+        inventory[0] = { type: 'shovel', count: 1 };
+        inventory[1] = { type: 'flashlight', count: 1 };
+
+        function findItemSlot(type) {
+            for (let i = 0; i < inventory.length; i++) {
+                if (inventory[i] && inventory[i].type === type) return i;
+            }
+            return -1;
+        }
+
+        function addItem(type, amount = 1) {
+            const def = ITEM_TYPES[type];
+            if (!def) return false;
+            const existingIdx = findItemSlot(type);
+            if (def.stackable) {
+                if (existingIdx >= 0) {
+                    inventory[existingIdx].count += amount;
+                    renderInventory();
+                    return true;
+                }
+            } else {
+                if (existingIdx >= 0) return false;
+            }
+            for (let i = 0; i < inventory.length; i++) {
+                if (!inventory[i]) {
+                    inventory[i] = { type, count: amount };
+                    renderInventory();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function renderInventory() {
+            slots.forEach((slot, i) => {
+                const iconEl = slot.querySelector('.slot-icon');
+                const nameEl = slot.querySelector('.slot-name');
+                const countEl = slot.querySelector('.slot-count');
+                const item = inventory[i];
+                if (!item) {
+                    iconEl.textContent = '';
+                    nameEl.textContent = '';
+                    slot.title = '';
+                    countEl.textContent = '';
+                } else {
+                    const def = ITEM_TYPES[item.type];
+                    iconEl.textContent = def.icon;
+                    nameEl.textContent = def.short;
+                    slot.title = def.name;
+                    countEl.textContent = (def.stackable && item.count > 1) ? item.count : '';
+                }
+            });
+        }
+        renderInventory();
+
+        // ----- World item meshes (pickups on the ground) -----
+        const worldItems = [];
+
+        function createGunMesh() {
+            const g = new THREE.Group();
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(0.18, 0.2, 0.8),
+                new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.6 })
+            );
+            const barrel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.05, 0.05, 0.7, 8),
+                new THREE.MeshStandardMaterial({ color: 0x222222 })
+            );
+            barrel.rotation.x = Math.PI / 2;
+            barrel.position.z = 0.6;
+            const grip = new THREE.Mesh(
+                new THREE.BoxGeometry(0.15, 0.28, 0.18),
+                new THREE.MeshStandardMaterial({ color: 0x4a2a14 })
+            );
+            grip.position.set(0, -0.22, -0.28);
+            g.add(body); g.add(barrel); g.add(grip);
+            return g;
+        }
+        function createAmmoMesh() {
+            return new THREE.Mesh(
+                new THREE.BoxGeometry(0.4, 0.24, 0.3),
+                new THREE.MeshStandardMaterial({ color: 0xc08030, roughness: 0.7 })
+            );
+        }
+        function createLighterMesh() {
+            const g = new THREE.Group();
+            const body = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.12, 0.12, 0.4, 10),
+                new THREE.MeshStandardMaterial({ color: 0xcc2818, roughness: 0.4 })
+            );
+            const cap = new THREE.Mesh(
+                new THREE.BoxGeometry(0.18, 0.08, 0.18),
+                new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.6, roughness: 0.3 })
+            );
+            cap.position.y = 0.24;
+            g.add(body); g.add(cap);
+            return g;
+        }
+        function createSnowballMesh() {
+            return new THREE.Mesh(
+                new THREE.SphereGeometry(0.22, 10, 10),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 })
+            );
+        }
+
+        function spawnWorldItem(type, mesh) {
+            const pos = onLandPos();
+            pos.y = 0.6;
+            mesh.position.copy(pos);
+            mesh.castShadow = true;
+            mesh.userData.spinPhase = Math.random() * Math.PI * 2;
+            mesh.userData.baseY = pos.y;
+            scene.add(mesh);
+            worldItems.push({ type, mesh });
+        }
+
+        for (let i = 0; i < 4; i++)  spawnWorldItem('gun', createGunMesh());
+        for (let i = 0; i < 8; i++)  spawnWorldItem('ammo', createAmmoMesh());
+        for (let i = 0; i < 10; i++) spawnWorldItem('lighter', createLighterMesh());
+        for (let i = 0; i < 25; i++) spawnWorldItem('snowball', createSnowballMesh());
+
+        const PICKUP_AMOUNT = { ammo: 6, snowball: 1 };
+
+        // ============================================================
+        // HELD TOOL (visible in first-person view)
+        // ============================================================
+        scene.add(camera);
+        const heldHolder = new THREE.Group();
+        heldHolder.position.set(0.38, -0.32, -0.7);
+        camera.add(heldHolder);
+        let heldMesh = null;
+
+        function createShovelHeld() {
+            const g = new THREE.Group();
+            const handle = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.03, 0.03, 0.95, 8),
+                new THREE.MeshStandardMaterial({ color: 0x7a4a28, roughness: 0.9 })
+            );
+            handle.rotation.x = Math.PI * 0.28;
+            handle.position.set(0, -0.1, 0.15);
+            const head = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.04, 0.3),
+                new THREE.MeshStandardMaterial({ color: 0xb8b8b8, metalness: 0.5, roughness: 0.4 })
+            );
+            head.rotation.x = Math.PI * 0.28;
+            head.position.set(0, 0.22, 0.5);
+            g.add(handle); g.add(head);
+            return g;
+        }
+        function createGunHeld() {
+            const g = new THREE.Group();
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(0.1, 0.14, 0.55),
+                new THREE.MeshStandardMaterial({ color: 0x3a3a3a })
+            );
+            body.position.z = 0.1;
+            const barrel = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.03, 0.03, 0.55, 8),
+                new THREE.MeshStandardMaterial({ color: 0x1a1a1a })
+            );
+            barrel.rotation.x = Math.PI / 2;
+            barrel.position.set(0, 0.02, 0.45);
+            const grip = new THREE.Mesh(
+                new THREE.BoxGeometry(0.08, 0.2, 0.12),
+                new THREE.MeshStandardMaterial({ color: 0x4a2a14 })
+            );
+            grip.position.set(0, -0.18, 0);
+            g.add(body); g.add(barrel); g.add(grip);
+            return g;
+        }
+        function createFlashlightHeld() {
+            const g = new THREE.Group();
+            const body = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.06, 0.06, 0.35, 10),
+                new THREE.MeshStandardMaterial({ color: 0x303030, metalness: 0.5 })
+            );
+            body.rotation.x = Math.PI / 2;
+            const lens = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.08, 0.08, 0.05, 10),
+                new THREE.MeshStandardMaterial({ color: 0xffffaa, emissive: 0x333322 })
+            );
+            lens.rotation.x = Math.PI / 2;
+            lens.position.z = 0.2;
+            g.add(body); g.add(lens);
+            return g;
+        }
+        function createLighterHeld() {
+            const g = new THREE.Group();
+            const body = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.07, 0.07, 0.2, 8),
+                new THREE.MeshStandardMaterial({ color: 0xcc2818 })
+            );
+            const cap = new THREE.Mesh(
+                new THREE.BoxGeometry(0.1, 0.05, 0.1),
+                new THREE.MeshStandardMaterial({ color: 0xaaaaaa, metalness: 0.6 })
+            );
+            cap.position.y = 0.13;
+            g.add(body); g.add(cap);
+            return g;
+        }
+        function createSnowballHeld() {
+            return new THREE.Mesh(
+                new THREE.SphereGeometry(0.12, 10, 10),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 })
+            );
+        }
+        function createAmmoHeld() {
+            return new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.14, 0.16),
+                new THREE.MeshStandardMaterial({ color: 0xc08030, roughness: 0.7 })
+            );
+        }
+        function createMeatHeld(color) {
+            return new THREE.Mesh(
+                new THREE.BoxGeometry(0.22, 0.14, 0.22),
+                new THREE.MeshStandardMaterial({ color, roughness: 0.85 })
+            );
+        }
+
+        const HELD_BUILDERS = {
+            shovel: createShovelHeld,
+            gun: createGunHeld,
+            flashlight: createFlashlightHeld,
+            lighter: createLighterHeld,
+            snowball: createSnowballHeld,
+            ammo: createAmmoHeld,
+            meat_raw: () => createMeatHeld(0xb04030),
+            meat_cooked: () => createMeatHeld(0x663322),
+        };
+
+        function setHeldTool(type) {
+            if (heldMesh) {
+                heldHolder.remove(heldMesh);
+                heldMesh = null;
+            }
+            if (type && HELD_BUILDERS[type]) {
+                heldMesh = HELD_BUILDERS[type]();
+                heldHolder.add(heldMesh);
+            }
+        }
+
+        function updateHeldFromSelected() {
+            const slot = inventory[selectedSlot];
+            setHeldTool(slot ? slot.type : null);
+        }
+        updateHeldFromSelected();
+
+        // Wrap selectSlot and addItem so held tool + inventory stay in sync
+        const _selectSlot = selectSlot;
+        selectSlot = function(idx) {
+            _selectSlot(idx);
+            updateHeldFromSelected();
+        };
+        const _addItem = addItem;
+        addItem = function(type, amount) {
+            const ok = _addItem(type, amount);
+            if (ok) updateHeldFromSelected();
+            return ok;
+        };
+
+        // ============================================================
+        // USING TOOLS (swing shovel / shoot gun)
+        // ============================================================
+        let swingTime = 0;
+        const swingDuration = 0.35;
+        let recoilTime = 0;
+        const recoilDuration = 0.25;
+
+        const SHOVEL_REACH = 4;
+        const SHOVEL_DAMAGE = 170;
+        const GUN_RANGE = 100;
+        const GUN_DAMAGE = 350;
+
+        function findAnimalInAim(maxRange, minDot, horizontalOnly) {
+            const camForward = new THREE.Vector3();
+            camera.getWorldDirection(camForward);
+            if (horizontalOnly) { camForward.y = 0; camForward.normalize(); }
+            let best = null;
+            let bestDist = Infinity;
+            for (const animal of animals) {
+                if (animal.hp <= 0) continue;
+                const toA = new THREE.Vector3().subVectors(animal.mesh.position, camera.position);
+                let dist;
+                if (horizontalOnly) {
+                    dist = Math.sqrt(toA.x * toA.x + toA.z * toA.z);
+                    toA.y = 0;
+                } else {
+                    dist = toA.length();
+                }
+                if (dist > maxRange) continue;
+                toA.normalize();
+                const dot = toA.dot(camForward);
+                if (dot < minDot) continue;
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    best = animal;
+                }
+            }
+            return best;
+        }
+
+        function damageAnimal(animal, dmg) {
+            animal.hp -= dmg;
+            if (animal.hp <= 0) {
+                animal.hp = 0;
+                scene.remove(animal.mesh);
+            }
+        }
+
+        function swingShovel() {
+            if (swingTime > 0) return;
+            swingTime = swingDuration;
+            playSwingSound();
+            // Wide, horizontal cone so short animals (penguins) are easy to hit
+            const target = findAnimalInAim(SHOVEL_REACH, 0.3, true);
+            if (target) damageAnimal(target, SHOVEL_DAMAGE);
+        }
+
+        function shootGun() {
+            if (recoilTime > 0) return;
+            const ammoIdx = findItemSlot('ammo');
+            if (ammoIdx < 0 || inventory[ammoIdx].count <= 0) {
+                playEmptyGunSound();
+                return;
+            }
+            inventory[ammoIdx].count--;
+            if (inventory[ammoIdx].count <= 0) inventory[ammoIdx] = null;
+            renderInventory();
+            recoilTime = recoilDuration;
+            playGunSound();
+            const target = findAnimalInAim(GUN_RANGE, 0.985);
+            if (target) damageAnimal(target, GUN_DAMAGE);
+        }
+
+        function useSelectedItem() {
+            const slot = inventory[selectedSlot];
+            if (!slot) return;
+            if (slot.type === 'shovel') swingShovel();
+            else if (slot.type === 'gun') shootGun();
+        }
+
+        function playSwingSound() {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const bufSize = audioCtx.sampleRate * 0.18;
+            const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < bufSize; i++) {
+                const env = Math.pow(1 - i / bufSize, 2);
+                d[i] = (Math.random() * 2 - 1) * env;
+            }
+            const src = audioCtx.createBufferSource();
+            src.buffer = buf;
+            const filt = audioCtx.createBiquadFilter();
+            filt.type = 'bandpass';
+            filt.frequency.value = 1200;
+            filt.Q.value = 1.2;
+            const gain = audioCtx.createGain();
+            gain.gain.value = 0.18;
+            src.connect(filt); filt.connect(gain); gain.connect(audioCtx.destination);
+            src.start(t);
+        }
+
+        function playGunSound() {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const bufSize = audioCtx.sampleRate * 0.12;
+            const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+            const d = buf.getChannelData(0);
+            for (let i = 0; i < bufSize; i++) {
+                const env = Math.pow(1 - i / bufSize, 1.5);
+                d[i] = (Math.random() * 2 - 1) * env;
+            }
+            const src = audioCtx.createBufferSource();
+            src.buffer = buf;
+            const filt = audioCtx.createBiquadFilter();
+            filt.type = 'lowpass';
+            filt.frequency.value = 800;
+            const gain = audioCtx.createGain();
+            gain.gain.value = 0.35;
+            src.connect(filt); filt.connect(gain); gain.connect(audioCtx.destination);
+            src.start(t);
+        }
+
+        function playEmptyGunSound() {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(220, t);
+            osc.frequency.exponentialRampToValueAtTime(120, t + 0.05);
+            gain.gain.setValueAtTime(0.08, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(t); osc.stop(t + 0.08);
+        }
+
+        function playPickupSound() {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(660, t);
+            osc.frequency.exponentialRampToValueAtTime(1100, t + 0.15);
+            gain.gain.setValueAtTime(0.12, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.22);
+        }
+
+        function checkPickups(delta) {
+            for (let i = worldItems.length - 1; i >= 0; i--) {
+                const wi = worldItems[i];
+                wi.mesh.userData.spinPhase += delta * 2;
+                wi.mesh.rotation.y = wi.mesh.userData.spinPhase;
+                wi.mesh.position.y = wi.mesh.userData.baseY + Math.sin(wi.mesh.userData.spinPhase) * 0.12;
+
+                const dx = wi.mesh.position.x - camera.position.x;
+                const dz = wi.mesh.position.z - camera.position.z;
+                const d = Math.sqrt(dx * dx + dz * dz);
+                if (d < 2.5) {
+                    const amount = PICKUP_AMOUNT[wi.type] || 1;
+                    if (addItem(wi.type, amount)) {
+                        scene.remove(wi.mesh);
+                        worldItems.splice(i, 1);
+                        playPickupSound();
+                    }
+                }
+            }
+        }
 
         const moveState = { forward: false, backward: false, left: false, right: false };
         const lookState = { up: false, down: false, left: false, right: false };
@@ -702,6 +1298,7 @@
             blocker.style.display = 'none';
             crosshair.style.display = 'block';
             dayDisplay.style.display = 'block';
+            hud.style.display = 'flex';
         }
 
         function pauseGame() {
@@ -709,6 +1306,7 @@
             isPlaying = false;
             blocker.style.display = 'flex';
             crosshair.style.display = 'none';
+            hud.style.display = 'none';
         }
 
         document.addEventListener('click', startGame);
@@ -730,6 +1328,15 @@
                 case 'ArrowDown': lookState.down = true; e.preventDefault(); break;
                 case 'ArrowLeft': lookState.left = true; e.preventDefault(); break;
                 case 'ArrowRight': lookState.right = true; e.preventDefault(); break;
+                case 'Digit1': selectSlot(0); break;
+                case 'Digit2': selectSlot(1); break;
+                case 'Digit3': selectSlot(2); break;
+                case 'Digit4': selectSlot(3); break;
+                case 'Digit5': selectSlot(4); break;
+                case 'Digit6': selectSlot(5); break;
+                case 'Digit7': selectSlot(6); break;
+                case 'Digit8': selectSlot(7); break;
+                case 'KeyE': useSelectedItem(); break;
                 case 'Space':
                     if (canJump) {
                         velocity.y = jumpForce;
@@ -851,6 +1458,22 @@
             source.start(t);
         }
 
+        function playEatSound() {
+            if (!audioCtx) return;
+            const t = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(180, t);
+            osc.frequency.exponentialRampToValueAtTime(70, t + 0.25);
+            gain.gain.setValueAtTime(0.18, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(t);
+            osc.stop(t + 0.3);
+        }
+
         // ============================================================
         // GAME LOOP
         // ============================================================
@@ -907,6 +1530,40 @@
                 if (isMoving && canJump) {
                     playFootstep();
                 }
+
+                // Hunger decays slowly (100 -> 0 over ~10 minutes)
+                playerHunger -= (100 / 600) * delta;
+                if (playerHunger < 0) playerHunger = 0;
+
+                // Starving damages health (~1 hp every 2s)
+                if (playerHunger <= 0 && playerHp > 0) {
+                    playerHp -= 0.5 * delta;
+                    if (playerHp < 0) playerHp = 0;
+                }
+
+                // Pickups
+                checkPickups(delta);
+
+                // Held tool animation (swing / recoil)
+                heldHolder.position.set(0.38, -0.32, -0.7);
+                heldHolder.rotation.set(0, 0, 0);
+                if (swingTime > 0) {
+                    swingTime = Math.max(0, swingTime - delta);
+                    const t = 1 - swingTime / swingDuration;
+                    const s = Math.sin(t * Math.PI);
+                    // Side-to-side slice, keeps the tool on screen
+                    heldHolder.rotation.z = -s * 0.6;
+                    heldHolder.rotation.y = s * 0.4;
+                    heldHolder.position.x = 0.38 - s * 0.2;
+                    heldHolder.position.y = -0.32 + s * 0.05;
+                }
+                if (recoilTime > 0) {
+                    recoilTime = Math.max(0, recoilTime - delta);
+                    const t = 1 - recoilTime / recoilDuration;
+                    const k = Math.sin(t * Math.PI);
+                    heldHolder.position.z = -0.7 + k * 0.18;
+                    heldHolder.rotation.x = -k * 0.35;
+                }
             }
 
             // Update animals
@@ -918,6 +1575,7 @@
                 setTimeout(() => { damageOverlay.style.background = 'rgba(255, 0, 0, 0)'; }, 200);
             }
             lastPlayerHp = playerHp;
+            updateHud();
 
             // Update snow
             const snowPos = snow.geometry.attributes.position.array;
