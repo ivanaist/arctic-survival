@@ -83,10 +83,10 @@
     <div id="blocker">
         <h1>Survive in the Arctic for 3 Weeks!</h1>
         <p>WASD - Move</p>
-        <p>Mouse - Look around</p>
+        <p>Arrow Keys - Look around</p>
         <p>Space - Jump</p>
         <p>ESC - Pause</p>
-        <p class="click-msg">Click to start</p>
+        <p class="click-msg">Click or press any key to start</p>
     </div>
     <div id="crosshair"></div>
     <div id="day-display">Day 1 of 21</div>
@@ -681,9 +681,10 @@
         const blocker = document.getElementById('blocker');
         const crosshair = document.getElementById('crosshair');
         const dayDisplay = document.getElementById('day-display');
-        let isLocked = false;
+        let isPlaying = false;
 
         const moveState = { forward: false, backward: false, left: false, right: false };
+        const lookState = { up: false, down: false, left: false, right: false };
         let canJump = true;
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
@@ -692,46 +693,49 @@
         const moveSpeed = 60;
         const jumpForce = 8;
         const gravity = 20;
+        const lookSpeed = 2.2;
         const playerHeight = 1.7;
 
-        document.addEventListener('click', function() {
-            if (!isLocked) {
-                renderer.domElement.requestPointerLock();
-            }
-        });
+        function startGame() {
+            if (isPlaying) return;
+            isPlaying = true;
+            blocker.style.display = 'none';
+            crosshair.style.display = 'block';
+            dayDisplay.style.display = 'block';
+        }
 
-        document.addEventListener('pointerlockchange', function() {
-            isLocked = document.pointerLockElement === renderer.domElement;
-            if (isLocked) {
-                blocker.style.display = 'none';
-                crosshair.style.display = 'block';
-                dayDisplay.style.display = 'block';
-            } else {
-                blocker.style.display = 'flex';
-                crosshair.style.display = 'none';
-            }
-        });
+        function pauseGame() {
+            if (!isPlaying) return;
+            isPlaying = false;
+            blocker.style.display = 'flex';
+            crosshair.style.display = 'none';
+        }
 
-        document.addEventListener('mousemove', function(e) {
-            if (!isLocked) return;
-            euler.setFromQuaternion(camera.quaternion);
-            euler.y -= e.movementX * 0.002;
-            euler.x -= e.movementY * 0.002;
-            euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
-            camera.quaternion.setFromEuler(euler);
-        });
+        document.addEventListener('click', startGame);
 
         document.addEventListener('keydown', function(e) {
+            if (e.code === 'Escape') {
+                pauseGame();
+                return;
+            }
+            if (!isPlaying) {
+                startGame();
+            }
             switch (e.code) {
                 case 'KeyW': moveState.forward = true; break;
                 case 'KeyS': moveState.backward = true; break;
                 case 'KeyA': moveState.left = true; break;
                 case 'KeyD': moveState.right = true; break;
+                case 'ArrowUp': lookState.up = true; e.preventDefault(); break;
+                case 'ArrowDown': lookState.down = true; e.preventDefault(); break;
+                case 'ArrowLeft': lookState.left = true; e.preventDefault(); break;
+                case 'ArrowRight': lookState.right = true; e.preventDefault(); break;
                 case 'Space':
                     if (canJump) {
                         velocity.y = jumpForce;
                         canJump = false;
                     }
+                    e.preventDefault();
                     break;
             }
         });
@@ -742,6 +746,10 @@
                 case 'KeyS': moveState.backward = false; break;
                 case 'KeyA': moveState.left = false; break;
                 case 'KeyD': moveState.right = false; break;
+                case 'ArrowUp': lookState.up = false; break;
+                case 'ArrowDown': lookState.down = false; break;
+                case 'ArrowLeft': lookState.left = false; break;
+                case 'ArrowRight': lookState.right = false; break;
             }
         });
 
@@ -852,7 +860,18 @@
             requestAnimationFrame(animate);
             const delta = Math.min(clock.getDelta(), 0.1);
 
-            if (isLocked) {
+            if (isPlaying) {
+                // Look with arrow keys
+                const lookX = Number(lookState.right) - Number(lookState.left);
+                const lookY = Number(lookState.down) - Number(lookState.up);
+                if (lookX !== 0 || lookY !== 0) {
+                    euler.setFromQuaternion(camera.quaternion);
+                    euler.y -= lookX * lookSpeed * delta;
+                    euler.x -= lookY * lookSpeed * delta;
+                    euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
+                    camera.quaternion.setFromEuler(euler);
+                }
+
                 // Movement
                 direction.z = Number(moveState.forward) - Number(moveState.backward);
                 direction.x = Number(moveState.right) - Number(moveState.left);
