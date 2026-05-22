@@ -1280,7 +1280,6 @@
         }
 
         const moveState = { forward: false, backward: false, left: false, right: false };
-        const lookState = { up: false, down: false, left: false, right: false };
         let canJump = true;
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
@@ -1289,7 +1288,7 @@
         const moveSpeed = 60;
         const jumpForce = 8;
         const gravity = 20;
-        const lookSpeed = 2.2;
+        const mouseSensitivity = 0.002;
         const playerHeight = 1.7;
 
         function startGame() {
@@ -1301,33 +1300,27 @@
             hud.style.display = 'flex';
         }
 
-        function pauseGame() {
+        document.addEventListener('mousemove', function(e) {
             if (!isPlaying) return;
-            isPlaying = false;
-            blocker.style.display = 'flex';
-            crosshair.style.display = 'none';
-            hud.style.display = 'none';
-        }
+            euler.setFromQuaternion(camera.quaternion);
+            euler.y -= e.movementX * mouseSensitivity;
+            euler.x -= e.movementY * mouseSensitivity;
+            euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
+            camera.quaternion.setFromEuler(euler);
+        });
 
         document.addEventListener('click', startGame);
 
         document.addEventListener('keydown', function(e) {
-            if (e.code === 'Escape') {
-                pauseGame();
-                return;
-            }
             if (!isPlaying) {
                 startGame();
+                return;
             }
             switch (e.code) {
                 case 'KeyW': moveState.forward = true; break;
                 case 'KeyS': moveState.backward = true; break;
                 case 'KeyA': moveState.left = true; break;
                 case 'KeyD': moveState.right = true; break;
-                case 'ArrowUp': lookState.up = true; e.preventDefault(); break;
-                case 'ArrowDown': lookState.down = true; e.preventDefault(); break;
-                case 'ArrowLeft': lookState.left = true; e.preventDefault(); break;
-                case 'ArrowRight': lookState.right = true; e.preventDefault(); break;
                 case 'Digit1': selectSlot(0); break;
                 case 'Digit2': selectSlot(1); break;
                 case 'Digit3': selectSlot(2); break;
@@ -1353,10 +1346,6 @@
                 case 'KeyS': moveState.backward = false; break;
                 case 'KeyA': moveState.left = false; break;
                 case 'KeyD': moveState.right = false; break;
-                case 'ArrowUp': lookState.up = false; break;
-                case 'ArrowDown': lookState.down = false; break;
-                case 'ArrowLeft': lookState.left = false; break;
-                case 'ArrowRight': lookState.right = false; break;
             }
         });
 
@@ -1484,17 +1473,6 @@
             const delta = Math.min(clock.getDelta(), 0.1);
 
             if (isPlaying) {
-                // Look with arrow keys
-                const lookX = Number(lookState.right) - Number(lookState.left);
-                const lookY = Number(lookState.down) - Number(lookState.up);
-                if (lookX !== 0 || lookY !== 0) {
-                    euler.setFromQuaternion(camera.quaternion);
-                    euler.y -= lookX * lookSpeed * delta;
-                    euler.x -= lookY * lookSpeed * delta;
-                    euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
-                    camera.quaternion.setFromEuler(euler);
-                }
-
                 // Movement
                 direction.z = Number(moveState.forward) - Number(moveState.backward);
                 direction.x = Number(moveState.right) - Number(moveState.left);
